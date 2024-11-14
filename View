@@ -1,0 +1,44 @@
+@model IEnumerable<FoodDelivery4.Models.food>
+
+@{
+    ViewData["Title"] = "Food List";
+}
+
+<h1>Food List</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Price</th>
+            <th>Image</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Name</td>
+                <td>@item.Description</td>
+                <td>@item.Price.ToString("C")</td>
+                <td>
+                    @if (!string.IsNullOrEmpty(item.ImageUrl))
+                    {
+                        <img src="@item.ImageUrl" alt="@item.Name" width="100" height="100" />
+                    }
+                </td>
+                <td>
+                    <a href="@Url.Action("Edit", new { id = item.Id })">Edit</a> |
+                    <a href="@Url.Action("Details", new { id = item.Id })">Details</a> |
+                    <a href="@Url.Action("Delete", new { id = item.Id })">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<a href="@Url.Action("Create")" class="btn btn-primary">Create New</a>
