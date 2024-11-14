@@ -1,1 +1,187 @@
+using FoodDelivery4.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using System.Text;
+using Amazon.S3;
+using Amazon.S3.Transfer;
+using Amazon.S3.Model;
+using Microsoft.Extensions.Configuration;
+
+namespace FoodDelivery4.Controllers
+{
+    public class FoodController : Controller
+    {
+        private readonly string _bucketName;
+        private readonly IAmazonS3 _s3Client;
+        
+        // Constructor to inject AWS S3 Client and retrieve configurations
+        public FoodController(IConfiguration configuration)
+        {
+            _bucketName = configuration["AWS:S3BucketName"];
+            _s3Client = new AmazonS3Client(RegionEndpoint.USEast1); // Update to your region
+        }
+
+        // Method to upload file to AWS S3
+        private async Task<string> UploadFileToS3Async(IFormFile file)
+        {
+            string fileUrl = string.Empty;
+
+            if (file != null && file.Length > 0)
+            {
+                var uniqueFileName = Guid.NewGuid().ToString() + "_" + file.FileName;
+                var transferUtility = new TransferUtility(_s3Client);
+
+                using (var stream = file.OpenReadStream())
+                {
+                    try
+                    {
+                        await transferUtility.UploadAsync(stream, _bucketName, uniqueFileName);
+                        fileUrl = $"https://{_bucketName}.s3.amazonaws.com/{uniqueFileName}";
+                    }
+                    catch (AmazonS3Exception ex)
+                    {
+                        // Log or handle exceptions as needed
+                        Console.WriteLine($"Error encountered: {ex.Message}");
+                    }
+                }
+            }
+            return fileUrl;
+        }
+
+        // GET: FoodController
+        public async Task<ActionResult> Index()
+        {
+            string apiUrl = "https://localhost:7296/api/food";
+            List<food> foods = new List<food>();
+
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = await client.GetAsync(apiUrl);
+                var result = await response.Content.ReadAsStringAsync();
+                foods = JsonConvert.DeserializeObject<List<food>>(result);
+            }
+
+            return View(foods);
+        }
+
+        // GET: FoodController/Details/5
+        public async Task<ActionResult> Details(int id)
+        {
+            string apiUrl = $"https://localhost:7296/api/food/{id}";
+            food foodItem = null;
+
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = await client.GetAsync(apiUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadAsStringAsync();
+                    foodItem = JsonConvert.DeserializeObject<food>(result);
+                }
+            }
+
+            return View(foodItem);
+        }
+
+        // GET: FoodController/Create
+        public ActionResult Create()
+        {
+            return View();
+        }
+
+        // POST: FoodController/Create
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> Create(food user, IFormFile file)
+        {
+            if (file != null)
+            {
+                user.ImageUrl = await UploadFileToS3Async(file); // Upload the image and set URL
+            }
+
+            string apiUrl = "https://localhost:7296/api/food";
+            using (HttpClient client = new HttpClient())
+            {
+                StringContent content = new StringContent(JsonConvert.SerializeObject(user), Encoding.UTF8, "application/json");
+                HttpResponseMessage response = await client.PostAsync(apiUrl, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+
+            return View(user);
+        }
+
+        // GET: FoodController/Edit/5
+        public async Task<ActionResult> Edit(int id)
+        {
+            string apiUrl = $"https://localhost:7296/api/food/{id}";
+            food foodItem = null;
+
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = await client.GetAsync(apiUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadAsStringAsync();
+                    foodItem = JsonConvert.DeserializeObject<food>(result);
+                }
+            }
+
+            return View(foodItem);
+        }
+
+        // POST: FoodController/Edit/5
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> Edit(int id, food user, IFormFile file)
+        {
+            if (file != null)
+            {
+                user.ImageUrl = await UploadFileToS3Async(file); // Upload and get URL
+            }
+
+            string apiUrl = $"https://localhost:7296/api/food/{id}";
+            using (HttpClient client = new HttpClient())
+            {
+                StringContent content = new StringContent(JsonConvert.SerializeObject(user), Encoding.UTF8, "application/json");
+                HttpResponseMessage response = await client.PutAsync(apiUrl, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+
+            return View(user);
+        }
+
+        // GET: FoodController/Delete/5
+        public ActionResult Delete(int id)
+        {
+            return View();
+        }
+
+        // POST: FoodController/Delete/5
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> Delete(int id)
+        {
+            string apiUrl = $"https://localhost:7296/api/food/{id}";
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = await client.DeleteAsync(apiUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+
+            return View();
+        }
+    }
+}
 
